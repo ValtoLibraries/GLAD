@@ -1,10 +1,16 @@
-cmake_minimum_required(VERSION 2.8)
-# Silence warning about if()
+cmake_minimum_required(VERSION 3.0)
+
+# Silence warning about PROJECT_VERSION
+cmake_policy(SET CMP0048 NEW)
+
 if(NOT CMAKE_VERSION VERSION_LESS 3.1)
+  # Silence warning about if()
   cmake_policy(SET CMP0054 NEW)
 endif()
 
-project(GLAD)
+
+project(GLAD VERSION 0.1.18 LANGUAGES C)
+
 
 set(GLAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(GLAD_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
@@ -16,9 +22,13 @@ set(GLAD_API "" CACHE STRING "API type/version pairs, like \"gl=3.2,gles=\", no 
 set(GLAD_GENERATOR "c" CACHE STRING "Language to generate the binding for")
 set(GLAD_EXTENSIONS "" CACHE STRING "Path to extensions file or comma separated list of extensions, if missing all extensions are included")
 set(GLAD_SPEC "gl" CACHE STRING "Name of the spec")
-set(GLAD_NO_LOADER OFF CACHE BOOL "No loader")
-set(GLAD_EXPORT ON CACHE BOOL "Set export variables for external project")
-set(GLAD_INSTALL OFF CACHE BOOL "Generate installation target")
+option(GLAD_NO_LOADER "No loader" OFF)
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  option(GLAD_EXPORT "Set export variables for external project" OFF)
+else()
+  option(GLAD_EXPORT "Set export variables for external project" ON)
+endif()
+option(GLAD_INSTALL "Generate installation target" OFF)
 
 if(GLAD_GENERATOR STREQUAL "d")
   list(APPEND GLAD_SOURCES
@@ -42,7 +52,6 @@ elseif(GLAD_GENERATOR STREQUAL "volt")
   )
 else()
   set(GLAD_INCLUDE_DIRS "${GLAD_OUT_DIR}/include")
-  set(GLAD_LINKER_LANGUAGE CXX)
   list(APPEND GLAD_SOURCES
     "${GLAD_OUT_DIR}/src/glad.c"
     "${GLAD_INCLUDE_DIRS}/glad/glad.h"
@@ -72,6 +81,13 @@ add_library(glad ${GLAD_SOURCES})
 add_dependencies(glad glad-generate-files)
 target_include_directories(glad PUBLIC ${GLAD_INCLUDE_DIRS})
 
+# Are we building a shared library?
+get_target_property(library_type glad TYPE)
+if (library_type STREQUAL SHARED_LIBRARY)
+  # If so, define the macro GLAD_API_EXPORT on the command line.
+  target_compile_definitions(glad PRIVATE GLAD_GLAPI_EXPORT)
+endif()
+
 if(GLAD_LINKER_LANGUAGE)
   set_target_properties(glad PROPERTIES LINKER_LANGUAGE ${GLAD_LINKER_LANGUAGE})
 endif()
@@ -88,5 +104,6 @@ if(GLAD_INSTALL)
     install(DIRECTORY ${GLAD_INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_PREFIX})
   endif()
   install(TARGETS glad EXPORT glad-targets
-          ARCHIVE DESTINATION lib)
+          ARCHIVE DESTINATION lib
+          LIBRARY DESTINATION lib)
 endif()
