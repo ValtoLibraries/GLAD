@@ -11,7 +11,7 @@ if(NOT CMAKE_VERSION VERSION_LESS 3.1)
   cmake_policy(SET CMP0054 NEW)
 endif()
 
-project(GLAD VERSION 0.1.18 LANGUAGES C)
+project(GLAD VERSION 0.1.20 LANGUAGES C)
 
 
 set(GLAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -82,7 +82,7 @@ set_source_files_properties(${GLAD_SOURCES} PROPERTIES GENERATED TRUE)
 add_library(glad ${GLAD_SOURCES})
 add_dependencies(glad glad-generate-files)
 target_include_directories(glad 
-    PRIVATE
+    PUBLIC
         $<BUILD_INTERFACE:${GLAD_INCLUDE_DIRS}>
     INTERFACE
         $<INSTALL_INTERFACE:include/glad>)
