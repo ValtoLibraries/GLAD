@@ -1,11 +1,29 @@
+from collections import OrderedDict
+
 import os
-import sys
 
 from glad.lang.common.generator import Generator
 from glad.lang.common.util import makefiledir
 
 
-KHRPLATFORM = 'https://www.khronos.org/registry/egl/api/KHR/khrplatform.h'
+KHRPLATFORM = 'https://raw.githubusercontent.com/KhronosGroup/EGL-Registry/master/api/KHR/khrplatform.h'
+
+
+_KHR_TYPE_REPLACEMENTS = {
+    'khronos_intptr_t': 'ptrdiff_t',
+    'khronos_ssize_t': 'ptrdiff_t'
+}
+
+
+def replace_khr_types(output_str):
+    replaced = output_str
+    for before, after in _KHR_TYPE_REPLACEMENTS.items():
+        replaced = replaced.replace(before, after)
+
+    if replaced == output_str:
+        return output_str
+
+    return '#if defined(__khrplatform_h_)\n' + output_str + '#else\n' + replaced + '#endif\n'
 
 
 class CGenerator(Generator):
@@ -21,7 +39,7 @@ class CGenerator(Generator):
             self.h_include = '"glad{}.h"'.format(suffix)
             self._f_c = open(make_path(self.path,
                                         'glad{}.c'.format(suffix)), 'w')
-            self._f_h = open(make_path(self.path, 
+            self._f_h = open(make_path(self.path,
                                         'glad{}.h'.format(suffix)), 'w')
             khr = self.path
         else:
@@ -35,7 +53,7 @@ class CGenerator(Generator):
         if not self.omit_khrplatform:
             khr_url = KHRPLATFORM
             if os.path.exists('khrplatform.h'):
-                khr_url = 'file://' + os.path.abspath('khrplatform.h')
+                khr_url = 'file:' + os.path.abspath('khrplatform.h')
 
             khrplatform = os.path.join(khr, 'khrplatform.h')
             if not os.path.exists(khrplatform):
@@ -163,16 +181,25 @@ class CGenerator(Generator):
         self.loader.write_header(f)
         self.write_api_header(f)
 
+        dedup_types = OrderedDict()
         for type in types:
+            dedup_types.setdefault(type.name, []).append(type)
+
+        for types in dedup_types.values():
+            type = types[0]
+
             output_string = (type.raw + '\n').lstrip().replace('        ', ' ')
+
+            if self.omit_khrplatform:
+                output_string = replace_khr_types(output_string)
+
             if output_string == '#include <KHR/khrplatform.h>\n':
                 if self.omit_khrplatform:
                     continue
                 elif self.local_files:
                     output_string = '#include "khrplatform.h"\n'
-            if not self.spec.NAME in ('egl',) and 'khronos' in type.raw:
-                continue
-            if type.name in ('GLsizeiptr', 'GLintptr', 'GLsizeiptrARB', 'GLintptrARB'):
+
+            if 'ptrdiff_t' in output_string:
                 # 10.6 is the last version supporting more than 64 bit (>1060)
                 output_string = \
                     '#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) ' +\
@@ -202,9 +229,9 @@ class CGenerator(Generator):
 
         if self.spec.NAME in ('gl', 'glx', 'wgl'):
             for feature in features:
-                f.write('int GLAD_{};\n'.format(feature.name))
+                f.write('int GLAD_{} = 0;\n'.format(feature.name))
 
-        for func in write:
+        for func in sorted(write, key=lambda x: x.proto.name):
             self.write_function(f, func)
 
     def generate_extensions(self, extensions, enums, functions):
@@ -217,8 +244,8 @@ class CGenerator(Generator):
 
         f = self._f_c
         if self.spec.NAME in ('gl', 'glx', 'wgl'):
-            for ext in set(ext.name for ext in extensions):
-                f.write('int GLAD_{};\n'.format(ext))
+            for ext in sorted(set(ext.name for ext in extensions)):
+                f.write('int GLAD_{} = 0;\n'.format(ext))
 
         written = set()
         for ext in extensions:
@@ -289,8 +316,8 @@ class CGenerator(Generator):
         fobj.write('#define {0} glad_{0}\n'.format(func.proto.name))
 
     def write_function(self, fobj, func):
-        fobj.write('PFN{}PROC glad_{};\n'.format(func.proto.name.upper(),
-                                                 func.proto.name))
+        fobj.write('PFN{}PROC glad_{} = NULL;\n'.format(func.proto.name.upper(),
+                                                        func.proto.name))
 
 
 def make_path(path, *args):

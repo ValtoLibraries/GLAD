@@ -18,7 +18,7 @@ int gladLoadGL(void) {
 '''
 
 _OPENGL_HAS_EXT = '''
-struct gladGLversionStruct GLVersion;
+struct gladGLversionStruct GLVersion = { 0, 0 };
 
 #if defined(GL_ES_VERSION_3_0) || defined(GL_VERSION_3_0)
 #define _GLAD_IS_SOME_NEW_VERSION 1
@@ -29,7 +29,7 @@ static int max_loaded_minor;
 
 static const char *exts = NULL;
 static int num_exts_i = 0;
-static const char **exts_i = NULL;
+static char **exts_i = NULL;
 
 static int get_exts(void) {
 #ifdef _GLAD_IS_SOME_NEW_VERSION
@@ -43,7 +43,7 @@ static int get_exts(void) {
         num_exts_i = 0;
         glGetIntegerv(GL_NUM_EXTENSIONS, &num_exts_i);
         if (num_exts_i > 0) {
-            exts_i = (const char **)realloc((void *)exts_i, (size_t)num_exts_i * (sizeof *exts_i));
+            exts_i = (char **)realloc((void *)exts_i, (size_t)num_exts_i * (sizeof *exts_i));
         }
 
         if (exts_i == NULL) {
@@ -56,11 +56,7 @@ static int get_exts(void) {
 
             char *local_str = (char*)malloc((len+1) * sizeof(char));
             if(local_str != NULL) {
-#if _MSC_VER >= 1400
-                strncpy_s(local_str, len+1, gl_str_tmp, len);
-#else
-                strncpy(local_str, gl_str_tmp, len+1);
-#endif
+                memcpy(local_str, gl_str_tmp, (len+1) * sizeof(char));
             }
             exts_i[index] = local_str;
         }
@@ -152,6 +148,10 @@ _OPENGL_HEADER = '''
 #endif
 #ifndef APIENTRYP
 #define APIENTRYP APIENTRY *
+#endif
+
+#ifndef GLAPIENTRY
+#define GLAPIENTRY APIENTRY
 #endif
 
 #ifdef __cplusplus
